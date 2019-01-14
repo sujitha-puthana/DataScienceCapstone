@@ -1,0 +1,193 @@
+---
+title: "Cpastone_Milestone_Report"
+author: "Sujitha P"
+date: "January 10, 2019"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Peer-graded Assignment: Milestone Report
+
+
+## Project Summary
+
+The goal of this project is just to display that you've gotten used to working with the data and that you are on track to create your prediction algorithm.
+
+Submit the findings of the milestone report on "rPubs"
+
+The pourpose of the project:
+
+1. Demonstrate that you've downloaded the data and have successfully loaded it in.
+
+2. Create a basic report of summary statistics about the data sets.
+
+3. Report any interesting findings that you amassed so far.
+
+4. Get feedback on your plans for creating a prediction algorithm and Shiny app.
+
+This report provides a brief  overview of the exploratory analysis performed on the text data which will be used on the Capstone project.
+
+
+---
+
+
+## Data loading and analysis
+
+
+```{r, message=FALSE}
+library(tm)
+library(wordcloud)
+library(RColorBrewer)
+library(dplyr)
+library(ggplot2)
+library(stringi)
+```
+
+```{r}
+list.of.packages <- c("stringi", "tm", "wordcloud", "RColorBrewer")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages, repos="http://cran.rstudio.com/")
+```
+
+
+```{r}
+fileUrl <-"https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+if (!file.exists("Coursera-SwiftKey.zip")){
+  download.file(fileUrl, destfile = "Coursera-SwiftKey.zip")
+}
+unzip("Coursera-SwiftKey.zip")
+```
+
+```{r}
+file.list = c("final/en_US/en_US.blogs.txt", "final/en_US/en_US.news.txt", "final/en_US/en_US.twitter.txt")
+text <- list(blogs = "", news = "", twitter = "")
+data.summary <- matrix(0, nrow = 3, ncol = 3, dimnames = list(c("blogs", "news", "twitter"),c("file size, Mb", "lines", "words")))
+for (i in 1:3) {
+  con <- file(file.list[i], "rb")
+  text[[i]] <- readLines(con, encoding = "UTF-8",skipNul = TRUE)
+  close(con)
+  data.summary[i,1] <- round(file.info(file.list[i])$size / 1024^2, 2)
+  data.summary[i,2] <- length(text[[i]])
+  data.summary[i,3] <- sum(stri_count_words(text[[i]]))
+}
+```
+
+```{r}
+set.seed(123)
+blogsSample <- sample(text$blogs, 0.01*length(text$blogs))
+newsSample <- sample(text$news, 0.01*length(text$news))
+twitterSample <- sample(text$twitter, 0.01*length(text$twitter))
+dataSample <- c(blogsSample, newsSample, twitterSample)
+sum <- sum(stri_count_words(dataSample))
+```
+
+```{r}
+dataSample <- iconv(dataSample, 'UTF-8', 'ASCII')
+corpus <- Corpus(VectorSource(as.data.frame(dataSample, stringsAsFactors = FALSE))) 
+corpus <- corpus %>%
+  tm_map(tolower) %>%  
+  tm_map(PlainTextDocument) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(removeNumbers) %>%
+  tm_map(stripWhitespace)
+```
+
+```{r}
+term.doc.matrix <- TermDocumentMatrix(corpus)
+term.doc.matrix <- as.matrix(term.doc.matrix)
+word.freqs <- sort(rowSums(term.doc.matrix), decreasing=TRUE) 
+dm <- data.frame(word=names(word.freqs), freq=word.freqs)
+```
+---
+> # Data Visualization
+This "Word Cloud" provides a quick visualization of the most common words in corpus.
+
+```{r}
+wordcloud(dm$word, dm$freq, min.freq= 500, random.order=TRUE, rot.per=.25, colors=brewer.pal(8, "Dark2"))
+```
+
+```{r}
+library(RWeka)
+unigram <- NGramTokenizer(corpus, Weka_control(min = 1, max = 1))
+bigram <- NGramTokenizer(corpus, Weka_control(min = 2, max = 2)) 
+trigram <- NGramTokenizer(corpus, Weka_control(min = 3, max = 3))
+```
+
+---
+
+> # Exploratory Analysis
+Analysis of the dataset: 
+
+
+> ### Unigram Word Frequency:
+The Unigram chart below presents the most common 25 Unigrams
+
+
+
+```{r}
+unigram.df <- data.frame(table(unigram))
+unigram.df <- unigram.df[order(unigram.df$Freq, decreasing = TRUE),]
+ggplot(unigram.df[1:25,], aes(x=unigram, y=Freq)) +
+  geom_bar(stat="Identity", fill="steelblue")+
+  xlab("Unigrams") + ylab("Frequency")+
+  ggtitle("Most common 25 Unigrams") +
+  theme(axis.text.x=element_text(angle=90, hjust=1))
+```
+
+
+> ### BiGram Word Frequency:
+The Biigram chart below represents the most common 25 Unigrams
+
+
+```{r}
+bigram.df <- data.frame(table(bigram))
+bigram.df <- bigram.df[order(bigram.df$Freq, decreasing = TRUE),]
+ggplot(bigram.df[1:25,], aes(x=bigram, y=Freq)) +
+  geom_bar(stat="Identity", fill="steelblue")+
+  xlab("Bigrams") + ylab("Frequency")+
+  ggtitle("Most common 25 Bigrams") +
+  theme(axis.text.x=element_text(angle=90, hjust=1))
+```
+
+
+
+> ### Trigram Word Frequency:
+The Trigram chart below presents the most common 25 Unigrams
+```{r}
+trigram.df <- data.frame(table(trigram))
+trigram.df <- trigram.df[order(trigram.df$Freq, decreasing = TRUE),]
+ggplot(trigram.df[1:25,], aes(x=trigram, y=Freq)) +
+  geom_bar(stat="Identity", fill="steelblue")+
+  xlab("Trigrams") + ylab("Frequency")+
+  ggtitle("Most common 25 Trigrams") +
+  theme(axis.text.x=element_text(angle=90, hjust=1))
+```
+
+
+
+
+---
+> ## Conclusion
+The large datasets is processor and time intensive while computing the results.
+
+Using the nGrams reults we can extrapolate the "next" word in the series using a basic algorithm. The probability of an untyped word can be estimated from the frequencies found in the n-grams results. 
+
+
+the data sets are pretty big and processing them requires time and computing resources;
+most of the top ranking n-grams contains English stop words
+using the n-grams we can conceive a crude algorithm to suggest the next words in a text editor; 
+
+---
+> ## Next Steps
+
+For example, the probability of an untyped word can be estimated from the frequencies in the corpus of the n-grams containing that word in the last position conditioned on the presence the last typed word(s) as the first n - 1 words in the n-gram. One can use a weighted sum of frequencies, with the weights calculated using machine learning.
+
+- Create a prediction alogrithm using on 4-gram
+- Update the Data Cleaning process by remove punctation, non-alphabet characters (e.g. numbers), website addresses, white spaces, profanity and stopwords.
+- Tune the prediction model for efficiency and accuracy.
+- Build a Shiny App: giving one or more words, the prediction app will be suggest a list of possibles "next word" using the prediction algorithm.
+
+---
